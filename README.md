@@ -1,6 +1,8 @@
-# yonsei-group-project
+# AI 전문가 과정 4조 팀 프로젝트
+---
+### Fact Check 동작 원리
 
-## Fact Check 동작 원리
+
 0. answer 생성
 1. answer 를 paragraph(라인) 단위로 쪼갬
 2-1. paragraph에서 initial 찾기
