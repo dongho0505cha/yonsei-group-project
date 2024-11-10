@@ -5,6 +5,7 @@ import time
 import os
 import numpy as np
 import logging
+from config import llm
 
 class OpenAIModel(LM):
 
@@ -35,7 +36,8 @@ class OpenAIModel(LM):
             # Call API
             response = call_ChatGPT(message, temp=self.temp, max_len=max_sequence_length)
             # Get the output from the response
-            output = response["choices"][0]["message"]["content"]
+            # output = response["choices"][0]["message"]["content"]
+            output = response.content
             return output, response
         elif self.model_name == "InstructGPT":
             # Call API
@@ -53,10 +55,13 @@ def call_ChatGPT(message, model_name="gpt-3.5-turbo", max_len=1024, temp=0.7, ve
     num_rate_errors = 0
     while not received:
         try:
-            response = openai.ChatCompletion.create(model=model_name,
-                                                    messages=message,
-                                                    max_tokens=max_len,
-                                                    temperature=temp)
+            llm.max_tokens = max_len
+            llm.temperature = temp
+            response = llm.invoke(message)
+            # response = openai.chat.completions.create(model=model_name,
+            #                                         messages=message,
+            #                                         max_tokens=max_len,
+            #                                         temperature=temp)
             received = True
         except:
             # print(message)

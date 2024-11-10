@@ -27,9 +27,10 @@ def question_and_answer(question_dataset_name, index_name, similarity_score_thre
     # 5 fail case question
     # initial_question = "How much is Einstein's bounty?"
 
-    result = rag_with_fact_checking(initial_question, qa_chain, regenerate_question_max_attempts)
+    result, documents = rag_with_fact_checking(initial_question, qa_chain, regenerate_question_max_attempts)
     if result:
         print(f"Final answer: {result}")
+        return result, documents
     else:
         print("Unable to find a factual answer.")
 
@@ -71,7 +72,8 @@ def rag_with_fact_checking(initial_question, qa_chain, max_attempts):
 
         if fact_check(current_question, answer, context):
             print("Fact check passed. Returning answer.")
-            return answer
+            documents = result['context']
+            return {"question" : current_question, "answer" : answer}, documents
         else:
             print("Fact check failed. Generating new question.")
             current_question = generate_new_question(current_question)

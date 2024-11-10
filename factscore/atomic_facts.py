@@ -1,33 +1,30 @@
-import json
 import numpy as np
 import re
-import functools
 import string
 import spacy
-import sys
 import nltk
-import openai
 from rank_bm25 import BM25Okapi
-import os
-import time
 from nltk.tokenize import sent_tokenize
+from config import demons
 
 from factscore.openai_lm import OpenAIModel
 
 nltk.download("punkt")
+nltk.download('punkt_tab')
 
 
 class AtomicFactGenerator(object):
-    def __init__(self, key_path, demon_dir, gpt3_cache_file=None):
+    def __init__(self):
         self.nlp = spacy.load("en_core_web_sm")
         self.is_bio = True
-        self.demon_path = os.path.join(demon_dir, "demons.json" if self.is_bio else "demons_complex.json")
+        # self.demon_path = os.path.join(demon_dir, "demons.json" if self.is_bio else "demons_complex.json")
 
-        self.openai_lm = OpenAIModel("InstructGPT", cache_file=gpt3_cache_file, key_path=key_path)
+        self.openai_lm = OpenAIModel("ChatGPT")
 
         # get the demos
-        with open(self.demon_path, 'r') as f:
-            self.demons = json.load(f)
+        # with open(self.demon_path, 'r') as f:
+        #     self.demons = json.load(f)
+        self.demons = demons
 
         tokenized_corpus = [doc.split(" ") for doc in self.demons.keys()]
         self.bm25 = BM25Okapi(tokenized_corpus)

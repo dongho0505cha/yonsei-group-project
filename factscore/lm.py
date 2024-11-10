@@ -21,8 +21,8 @@ class LM(object):
         if cache_key in self.cache_dict:
             return self.cache_dict[cache_key]
 
-        if self.model is None:
-            self.load_model()
+        # if self.model is None:
+        #     self.load_model()
 
         if prompt.endswith(" True or False?\nAnswer:"):
             generated = self._generate(prompt, max_sequence_length=max_sequence_length, max_output_length=1)
@@ -44,21 +44,22 @@ class LM(object):
         with open(self.cache_file, "wb") as f:
             pickle.dump(self.cache_dict, f)
 
-    def load_cache(self, allow_retry=True):
-        if os.path.exists(self.cache_file):
-            while True:
-                try:
-                    with open(self.cache_file, "rb") as f:
-                        cache = pickle.load(f)
-                    break
-                except Exception:
-                    if not allow_retry:
-                        assert False
-                    print ("Pickle Error: Retry in 5sec...")
-                    time.sleep(5)        
-        else:
-            cache = {}
-        return cache
+    def load_cache(self, allow_retry=True):        
+        # if os.path.exists(self.cache_file):
+        #     while True:
+        #         try:
+        #             with open(self.cache_file, "rb") as f:
+        #                 cache = pickle.load(f)
+        #             break
+        #         except Exception as e:
+        #             if not allow_retry:
+        #                 assert False
+        #             print ("Pickle Error: Retry in 5sec...")
+        #             time.sleep(5)        
+        # else:
+        #     cache = {}
+        # return cache
+        return {}
 
 
 

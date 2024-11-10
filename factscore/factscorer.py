@@ -108,12 +108,12 @@ class FactScorer(object):
                   atomic_facts=None,
                   knowledge_source=None,
                   verbose=False):
-        if knowledge_source is None:
-            # use the default knowledge source
-            knowledge_source = "enwiki-20230401"
+        # if knowledge_source is None:
+        #     # use the default knowledge source
+        #     knowledge_source = "enwiki-20230401"
 
-        if knowledge_source not in self.retrieval:
-            self.register_knowledge_source(knowledge_source)
+        # if knowledge_source not in self.retrieval:
+        #     self.register_knowledge_source(knowledge_source)
 
         if type(topics)==type(generations)==str:
             topics = [topics]
@@ -126,9 +126,10 @@ class FactScorer(object):
             assert len(topics)==len(atomic_facts), "`topics` and `atomic_facts` should have the same length"
         else:
             if self.af_generator is None:
-                self.af_generator = AtomicFactGenerator(key_path=self.openai_key,
-                                                        demon_dir=os.path.join(self.data_dir, "demos"),
-                                                        gpt3_cache_file=os.path.join(self.cache_dir, "InstructGPT.pkl"))
+                self.af_generator = AtomicFactGenerator()
+                # self.af_generator = AtomicFactGenerator(key_path=self.openai_key,
+                #                                         demon_dir=os.path.join(self.data_dir, "demos"),
+                #                                         gpt3_cache_file=os.path.join(self.cache_dir, "InstructGPT.pkl"))
 
             # estimate the total cost of atomic fact generation
             total_words = 0
@@ -212,11 +213,13 @@ class FactScorer(object):
         for atom in atomic_facts:
             atom = atom.strip()
             if self.lm:
-                passages = self.retrieval[knowledge_source].get_passages(topic, atom, k=5)
+                # passages = self.retrieval[knowledge_source].get_passages(topic, atom, k=5)
+                passages = knowledge_source
                 definition = "Answer the question about {} based on the given context.\n\n".format(topic)
                 context = ""
                 for psg_idx, psg in enumerate(reversed(passages)):
-                    context += "Title: {}\nText: {}\n\n".format(psg["title"], psg["text"].replace("<s>", "").replace("</s>", ""))
+                    # context += "Title: {}\nText: {}\n\n".format(psg["title"], psg["text"].replace("<s>", "").replace("</s>", ""))
+                    context += "Title: {}\nText: {}\n\n".format(psg.metadata['title'], psg.page_content.replace("<s>", "").replace("</s>", ""))
                 definition += context.strip()
                 if not definition[-1] in string.punctuation:
                     definition += "."
