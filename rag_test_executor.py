@@ -1,8 +1,8 @@
 from langchain.chains.llm import LLMChain
 from langchain_pinecone import PineconeVectorStore
-from langchain_core.output_parsers import StrOutputParser
-from langchain_core.runnables import RunnablePassthrough
 from langchain_core.prompts import PromptTemplate
+from langchain.chains.retrieval import create_retrieval_chain
+from langchain.chains.combine_documents import create_stuff_documents_chain
 from config import embeddings, llm, answer_prompt
 from database import init_pinecone_database
 
@@ -14,16 +14,9 @@ def question_and_answer(question_dataset_name, index_name, similarity_score_thre
         retriever = vector_store.as_retriever(search_type="similarity_score_threshold", search_kwargs={"score_threshold": similarity_score_threshold})
     else:
         retriever = vector_store.as_retriever()
-        
-    qa_chain = (
-        {
-            "context": retriever,
-            "question": RunnablePassthrough(),
-        }
-        | answer_prompt
-        | llm
-        | StrOutputParser()
-    )
+    
+    combine_docs_chain = create_stuff_documents_chain(llm, answer_prompt)
+    qa_chain = create_retrieval_chain(retriever, combine_docs_chain)
     
     # TODO : question_dataset 가져오기
     
@@ -68,10 +61,9 @@ def rag_with_fact_checking(initial_question, qa_chain, max_attempts):
     current_question = initial_question
 
     for attempt in range(max_attempts):
-        # result = qa_chain({"query": current_question})
-        result = qa_chain.invoke(current_question)
-        answer = result['result']
-        context = result['source_documents'][0].page_content if result['source_documents'] else ""
+        result = qa_chain.invoke({"input": current_question})
+        answer = result['answer']
+        context = "\n".join([document.page_content for document in result['context']]) if result['context'] else ""
 
         print(f"Attempt {attempt + 1}:")
         print(f"Question: {current_question}")

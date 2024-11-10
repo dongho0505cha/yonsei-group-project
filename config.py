@@ -32,7 +32,7 @@ If you don't know the answer, just say that you don't know.
 {context}
 
 #Question:
-{question}
+{input}
 
 #Answer:"""
 )
