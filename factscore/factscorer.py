@@ -89,17 +89,13 @@ class FactScorer(object):
         total_tokens = total_words * 4.0 / 3
 
         # https://openai.com/pricing
-        # if we use davinci-003, the cost is $0.02 per 1000 tokens
-        # if we use gpt-3.5-turbo, the cost is $0.002 per 1000 tokens
-        if model == "davinci-003":
-            rate = 0.02
-        elif model == "gpt-3.5-turbo":
-            rate = 0.002
+        # if we use gpt-4o-mini, the cost is $0.0006 per 1000 tokens
+        rate = 0.0006
 
         total_cost = total_tokens * rate / 1000
 
         # print the total words, tokens, and cost along with rate
-        logging.critical("Estimated OpenAI API cost for %s ($%.3f per 1000 tokens): $%.2f for %d words and %d tokens" % (task, rate, total_cost, total_words, total_tokens))
+        logging.critical("Estimated OpenAI API cost for %s ($%.4f per 1000 tokens): $%.4f for %d words and %d tokens" % (task, rate, total_cost, total_words, total_tokens))
 
     def get_score(self,
                   topics,
