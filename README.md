@@ -5,8 +5,8 @@
 1. python 3.10 or 3.11 버전 설치
 2. pip install -r requirements.txt 로 패키지 설치 (가상환경 선택사항)
 3. python -m spacy download en_core_web_sm 실행
-4. uvicorn main:app --reload 로 애플리케이션 실행
-5. 127.0.0.1/docs => swagger 접속
+4. uvicorn main:app --reload 로 애플리케이션 실행(or 디버깅 실행)
+5. 127.0.0.1:8000/docs => swagger 접속
 
 ---
 ### 리소스 정보
