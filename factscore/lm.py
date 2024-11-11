@@ -38,11 +38,11 @@ class LM(object):
             return
 
         # load the latest cache first, since if there were other processes running in parallel, cache might have been updated
-        for k, v in self.load_cache().items():
-            self.cache_dict[k] = v
+        # for k, v in self.load_cache().items():
+        #     self.cache_dict[k] = v
 
-        with open(self.cache_file, "wb") as f:
-            pickle.dump(self.cache_dict, f)
+        # with open(self.cache_file, "wb") as f:
+        #     pickle.dump(self.cache_dict, f)
 
     def load_cache(self, allow_retry=True):        
         # if os.path.exists(self.cache_file):

@@ -4,7 +4,8 @@ from langchain_core.prompts import PromptTemplate
 from langchain.chains.retrieval import create_retrieval_chain
 from langchain.chains.combine_documents import create_stuff_documents_chain
 from config import embeddings, llm, answer_prompt
-from database import init_pinecone_database
+from database import get_dataset, init_pinecone_database
+from factscore.factscorer import FactScorer
 
 def question_and_answer(question_dataset_name, index_name, similarity_score_threshold, regenerate_question_max_attempts):
     index = init_pinecone_database(index_name)
@@ -17,22 +18,19 @@ def question_and_answer(question_dataset_name, index_name, similarity_score_thre
     
     combine_docs_chain = create_stuff_documents_chain(llm, answer_prompt)
     qa_chain = create_retrieval_chain(retriever, combine_docs_chain)
-    
-    # TODO : question_dataset 가져오기
-    
-    # 1 pass case question
-    initial_question = "Tell me about Einstein’s achievements"
-    # 1 fail, 1 pass case question
-    # initial_question = "Describe the area where Einstein lived."
-    # 5 fail case question
-    # initial_question = "How much is Einstein's bounty?"
+        
+    factcheck_dataset_length = 3
+    dataset = get_dataset(question_dataset_name, factcheck_dataset_length)
 
-    result, documents = rag_with_fact_checking(initial_question, qa_chain, regenerate_question_max_attempts)
-    if result:
-        print(f"Final answer: {result}")
-        return result, documents
-    else:
-        print("Unable to find a factual answer.")
+    for index, data in enumerate(dataset):
+        print("======================")
+        print(f"Test case : {index + 1} / {factcheck_dataset_length}")
+        print("======================")
+        result, documents = rag_with_fact_checking(data['question'], qa_chain, regenerate_question_max_attempts)
+        if result:
+            print(f"Final answer: {result}")
+        else:
+            print("Unable to find a factual answer.")
 
 def fact_check(question, answer, context):
     fact_check_prompt = PromptTemplate(
@@ -64,19 +62,27 @@ def rag_with_fact_checking(initial_question, qa_chain, max_attempts):
     for attempt in range(max_attempts):
         result = qa_chain.invoke({"input": current_question})
         answer = result['answer']
-        context = "\n".join([document.page_content for document in result['context']]) if result['context'] else ""
+        
+        documents = result['context']
 
         print(f"Attempt {attempt + 1}:")
         print(f"Question: {current_question}")
         print(f"Answer: {answer}")
+        
+        fs = FactScorer()    
+        out = fs.get_score(topics=[current_question], generations=[answer], knowledge_source=documents, gamma=10)
+        result_score = out["score"]
+        print (f"Fact Score : {result_score}") # FActScore
+        # print (out["init_score"]) # FActScore w/o length penalty
+        # print (out["respond_ratio"]) # % of responding (not abstaining from answering)
+        # print (out["num_facts_per_response"]) # average number of atomic facts per response
 
-        if fact_check(current_question, answer, context):
-            print("Fact check passed. Returning answer.")
-            documents = result['context']
+        if result_score > 0.9:
+            print("Fact check passed. Returning answer.")            
             return {"question" : current_question, "answer" : answer}, documents
         else:
             print("Fact check failed. Generating new question.")
             current_question = generate_new_question(current_question)
 
     print(f"Max attempts ({max_attempts}) reached. No factual answer found.")
-    return None
+    return None, None

@@ -2,6 +2,9 @@ from langchain_openai import AzureChatOpenAI
 from langchain_openai import AzureOpenAIEmbeddings
 from langchain_core.prompts import PromptTemplate
 
+huggingface_read_key=""
+huggingface_write_key=""
+
 # Azure OpenAIEmbeddings 설정
 embeddings = AzureOpenAIEmbeddings(
     azure_endpoint="https://jp-britymeeting-dev-1.openai.azure.com/openai/deployments/text-embedding-3-small/embeddings?api-version=2023-05-15",
@@ -14,8 +17,12 @@ embeddings = AzureOpenAIEmbeddings(
 
 # Azure ChatOpenAI 설정
 llm = AzureChatOpenAI(
-    azure_endpoint="https://jp-britymeeting-dev-1.openai.azure.com/openai/deployments/gpt-4o-mini/chat/completions?api-version=2024-08-01-preview",
-    api_key="ef4e64c7a44b4dc9b52bf2939ca52480",
+    # jp resource
+    # azure_endpoint="https://jp-britymeeting-dev-1.openai.azure.com/openai/deployments/gpt-4o-mini/chat/completions?api-version=2024-08-01-preview",
+    # api_key="ef4e64c7a44b4dc9b52bf2939ca52480",
+    # us resource
+    azure_endpoint="https://us-britymeeting-dev-1.openai.azure.com/openai/deployments/gpt-4o-mini/chat/completions?api-version=2024-08-01-preview",
+    api_key="f44d9772a29345aeabacddcbafc491b2",
     api_version="2024-08-01-preview",
     deployment_name="gpt-4o-mini",
     model_name="gpt-4o-mini",
