@@ -8,10 +8,29 @@ from database import get_dataset, init_pinecone_database
 from factscore.factscorer import FactScorer
 import csv
 import time
+import concurrent.futures
+import os
+
+
+def process_data(index, data, qa_chain, regenerate_question_max_attempts):
+    print("======================")
+    print(f"Test case : {index + 1}")
+    print("======================")
+
+    # rag_with_fact_checking 함수 호출
+    result, documents, attempts = rag_with_fact_checking(data['question'], qa_chain, regenerate_question_max_attempts, index + 1)
+
+    if result:
+        print(f"Final answer: {result}")
+    else:
+        print("Unable to find a factual answer.")
+    
+    # 각 시도 데이터를 반환
+    return index, attempts
 
 def question_and_answer(question_dataset_name, index_name, similarity_score_threshold, regenerate_question_max_attempts):
     index = init_pinecone_database(index_name)
-    
+    print(f"{os.cpu_count() * 5}")
     vector_store = PineconeVectorStore(index=index, embedding=embeddings)
     if similarity_score_threshold:
         retriever = vector_store.as_retriever(search_type="similarity_score_threshold", search_kwargs={"score_threshold": similarity_score_threshold})
@@ -21,27 +40,48 @@ def question_and_answer(question_dataset_name, index_name, similarity_score_thre
     combine_docs_chain = create_stuff_documents_chain(llm, answer_prompt)
     qa_chain = create_retrieval_chain(retriever, combine_docs_chain)
         
-    factcheck_dataset_length = 5
+    factcheck_dataset_length = 100
     dataset = get_dataset(question_dataset_name, factcheck_dataset_length)
 
     outputFileName = f"output{round(time.time(), 1)}.csv"
     with open(outputFileName, mode="w", newline="") as file:
         writer = csv.writer(file)
         writer.writerow(["question_id", "question", "attempt", "answer", "fact_score", "retrieval_time", "factchecking_time", "atomic_token", "checking_token"])
+        
+        with concurrent.futures.ThreadPoolExecutor(max_workers= (os.cpu_count() * 5)/2) as executor:
+            # process_data 함수를 병렬로 호출
+            futures = [
+                executor.submit(process_data, index, data, qa_chain, regenerate_question_max_attempts)
+                for index, data in enumerate(dataset)
+            ]
 
-        for index, data in enumerate(dataset):
-            print("======================")
-            print(f"Test case : {index + 1} / {factcheck_dataset_length}")
-            print("======================")
+            # 완료된 작업에서 결과를 수집하여 CSV 파일에 기록
+            for future in concurrent.futures.as_completed(futures):
+                index, attempts = future.result()
+                for attempt_data in attempts:
+                    writer.writerow([
+                        index + 1,
+                        attempt_data["question"],
+                        attempt_data["attempt"],
+                        attempt_data["answer"],
+                        attempt_data["fact_score"],
+                        attempt_data["retrieval_time"],
+                        attempt_data["factchecking_time"],
+                        attempt_data["atomic_token"],
+                        attempt_data["factchecking_token"]
+                    ])
 
 
-            result, documents, attempts = rag_with_fact_checking(data['question'], qa_chain, regenerate_question_max_attempts, index+1)
-            if result:
-                print(f"Final answer: {result}")
-            else:
-                print("Unable to find a factual answer.")
-            for attempt_data in attempts:
-                writer.writerow([index +1, attempt_data["question"], attempt_data["attempt"], attempt_data["answer"], attempt_data["fact_score"], attempt_data["retrieval_time"], attempt_data["factchecking_time"], attempt_data["atomic_token"], attempt_data["factchecking_token"]])
+        # for index, data in enumerate(dataset):
+        #     print("======================")
+        #     print(f"Test case : {index + 1} / {factcheck_dataset_length}")
+        #     print("======================")
+
+
+        #     result, documents, attempts = rag_with_fact_checking(data['question'], qa_chain, regenerate_question_max_attempts, index+1)
+           
+        #     for attempt_data in attempts:
+        #         writer.writerow([index +1, attempt_data["question"], attempt_data["attempt"], attempt_data["answer"], attempt_data["fact_score"], attempt_data["retrieval_time"], attempt_data["factchecking_time"], attempt_data["atomic_token"], attempt_data["factchecking_token"]])
 
 def fact_check(question, answer, context):
     fact_check_prompt = PromptTemplate(
