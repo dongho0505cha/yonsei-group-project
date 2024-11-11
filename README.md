@@ -10,8 +10,8 @@
 
 ---
 ### 리소스 정보
-질문 데이터셋 : https://huggingface.co/datasets/donghocha/first-chunk-questions-dataset
-pinecone db 인덱스 : wikipedia-persons 
+- 질문 데이터셋 : https://huggingface.co/datasets/donghocha/first-chunk-questions-dataset
+- pinecone db 인덱스 : wikipedia-persons 
 
 ---
 ### Fact Check 동작 원리
