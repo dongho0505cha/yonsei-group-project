@@ -1,8 +1,20 @@
 # AI 전문가 과정 4조 팀 프로젝트
+
+---
+### 초기화
+1. python 3.10 or 3.11 버전 설치
+2. pip install -r requirements.txt 로 패키지 설치 (가상환경 선택사항)
+3. python -m spacy download en_core_web_sm 실행
+4. uvicorn main:app --reload 로 애플리케이션 실행
+5. 127.0.0.1/docs => swagger 접속
+
+---
+### 리소스 정보
+질문 데이터셋 : https://huggingface.co/datasets/donghocha/first-chunk-questions-dataset
+pinecone db 인덱스 : wikipedia-persons 
+
 ---
 ### Fact Check 동작 원리
-
-
 1. answer 생성
 2. answer 를 paragraph(라인) 단위로 쪼갬
 3. paragraph에서 initial 찾기
