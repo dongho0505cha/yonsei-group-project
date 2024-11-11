@@ -6,6 +6,7 @@ from langchain.chains.combine_documents import create_stuff_documents_chain
 from config import embeddings, llm, answer_prompt
 from database import get_dataset, init_pinecone_database
 from factscore.factscorer import FactScorer
+import csv
 
 def question_and_answer(question_dataset_name, index_name, similarity_score_threshold, regenerate_question_max_attempts):
     index = init_pinecone_database(index_name)
@@ -22,15 +23,21 @@ def question_and_answer(question_dataset_name, index_name, similarity_score_thre
     factcheck_dataset_length = 3
     dataset = get_dataset(question_dataset_name, factcheck_dataset_length)
 
-    for index, data in enumerate(dataset):
-        print("======================")
-        print(f"Test case : {index + 1} / {factcheck_dataset_length}")
-        print("======================")
-        result, documents = rag_with_fact_checking(data['question'], qa_chain, regenerate_question_max_attempts)
-        if result:
-            print(f"Final answer: {result}")
-        else:
-            print("Unable to find a factual answer.")
+    with open("output.csv", mode="w", newline="") as file:
+        writer = csv.writer(file)
+        writer.writerow(["question_id", "question", "attempt", "answer", "fact_score"])
+
+        for index, data in enumerate(dataset):
+            print("======================")
+            print(f"Test case : {index + 1} / {factcheck_dataset_length}")
+            print("======================")
+            result, documents, attempts = rag_with_fact_checking(data['question'], qa_chain, regenerate_question_max_attempts, index+1)
+            if result:
+                print(f"Final answer: {result}")
+            else:
+                print("Unable to find a factual answer.")
+            for attempt_data in attempts:
+                writer.writerow([index +1, attempt_data["question"], attempt_data["attempt"], attempt_data["answer"], attempt_data["fact_score"]])
 
 def fact_check(question, answer, context):
     fact_check_prompt = PromptTemplate(
@@ -56,9 +63,9 @@ def generate_new_question(original_question):
 
     return new_question.strip()
 
-def rag_with_fact_checking(initial_question, qa_chain, max_attempts):
+def rag_with_fact_checking(initial_question, qa_chain, max_attempts, index):
     current_question = initial_question
-
+    attempt_data = []
     for attempt in range(max_attempts):
         result = qa_chain.invoke({"input": current_question})
         answer = result['answer']
@@ -77,12 +84,19 @@ def rag_with_fact_checking(initial_question, qa_chain, max_attempts):
         # print (out["respond_ratio"]) # % of responding (not abstaining from answering)
         # print (out["num_facts_per_response"]) # average number of atomic facts per response
 
+        attempt_data.append({
+            "question_id": index,
+            "question": current_question,
+            "attempt": attempt + 1,
+            "answer": answer,
+            "fact_score": result_score
+        })
         if result_score > 0.9:
             print("Fact check passed. Returning answer.")            
-            return {"question" : current_question, "answer" : answer}, documents
+            return {"question" : current_question, "answer" : answer}, documents, attempt_data
         else:
             print("Fact check failed. Generating new question.")
             current_question = generate_new_question(current_question)
 
     print(f"Max attempts ({max_attempts}) reached. No factual answer found.")
-    return None, None
+    return None, None, attempt_data
