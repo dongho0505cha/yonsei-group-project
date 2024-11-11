@@ -7,6 +7,7 @@ from config import embeddings, llm, answer_prompt
 from database import get_dataset, init_pinecone_database
 from factscore.factscorer import FactScorer
 import csv
+import time
 
 def question_and_answer(question_dataset_name, index_name, similarity_score_threshold, regenerate_question_max_attempts):
     index = init_pinecone_database(index_name)
@@ -20,24 +21,27 @@ def question_and_answer(question_dataset_name, index_name, similarity_score_thre
     combine_docs_chain = create_stuff_documents_chain(llm, answer_prompt)
     qa_chain = create_retrieval_chain(retriever, combine_docs_chain)
         
-    factcheck_dataset_length = 3
+    factcheck_dataset_length = 5
     dataset = get_dataset(question_dataset_name, factcheck_dataset_length)
 
-    with open("output.csv", mode="w", newline="") as file:
+    outputFileName = f"output{round(time.time(), 1)}.csv"
+    with open(outputFileName, mode="w", newline="") as file:
         writer = csv.writer(file)
-        writer.writerow(["question_id", "question", "attempt", "answer", "fact_score"])
+        writer.writerow(["question_id", "question", "attempt", "answer", "fact_score", "retrieval_time", "factchecking_time", "atomic_token", "checking_token"])
 
         for index, data in enumerate(dataset):
             print("======================")
             print(f"Test case : {index + 1} / {factcheck_dataset_length}")
             print("======================")
+
+
             result, documents, attempts = rag_with_fact_checking(data['question'], qa_chain, regenerate_question_max_attempts, index+1)
             if result:
                 print(f"Final answer: {result}")
             else:
                 print("Unable to find a factual answer.")
             for attempt_data in attempts:
-                writer.writerow([index +1, attempt_data["question"], attempt_data["attempt"], attempt_data["answer"], attempt_data["fact_score"]])
+                writer.writerow([index +1, attempt_data["question"], attempt_data["attempt"], attempt_data["answer"], attempt_data["fact_score"], attempt_data["retrieval_time"], attempt_data["factchecking_time"], attempt_data["atomic_token"], attempt_data["factchecking_token"]])
 
 def fact_check(question, answer, context):
     fact_check_prompt = PromptTemplate(
@@ -67,15 +71,16 @@ def rag_with_fact_checking(initial_question, qa_chain, max_attempts, index):
     current_question = initial_question
     attempt_data = []
     for attempt in range(max_attempts):
+        retrieval_start_time = time.time()
         result = qa_chain.invoke({"input": current_question})
         answer = result['answer']
-        
+        retrieval_end_time = time.time()
         documents = result['context']
 
         print(f"Attempt {attempt + 1}:")
         print(f"Question: {current_question}")
         print(f"Answer: {answer}")
-        
+        factchecking_start_time = time.time()
         fs = FactScorer()    
         out = fs.get_score(topics=[current_question], generations=[answer], knowledge_source=documents, gamma=10)
         result_score = out["score"]
@@ -83,14 +88,19 @@ def rag_with_fact_checking(initial_question, qa_chain, max_attempts, index):
         # print (out["init_score"]) # FActScore w/o length penalty
         # print (out["respond_ratio"]) # % of responding (not abstaining from answering)
         # print (out["num_facts_per_response"]) # average number of atomic facts per response
-
+        factchecking_end_time = time.time()
         attempt_data.append({
             "question_id": index,
             "question": current_question,
             "attempt": attempt + 1,
             "answer": answer,
-            "fact_score": result_score
+            "fact_score": result_score,
+            "retrieval_time": round(retrieval_end_time - retrieval_start_time, 2),
+            "factchecking_time": round(factchecking_end_time - factchecking_start_time, 2),
+            "atomic_token":out["atomictoken"],
+            "factchecking_token": out["factcheckingtoken"]
         })
+
         if result_score > 0.9:
             print("Fact check passed. Returning answer.")            
             return {"question" : current_question, "answer" : answer}, documents, attempt_data

@@ -110,6 +110,9 @@ class FactScorer(object):
 
         # if knowledge_source not in self.retrieval:
         #     self.register_knowledge_source(knowledge_source)
+        atomic_token = 0;
+        fact_checking_token = 0;
+
 
         if type(topics)==type(generations)==str:
             topics = [topics]
@@ -133,6 +136,7 @@ class FactScorer(object):
                 total_words += self.af_generator.run(gen, cost_estimate=self.cost_estimate)
 
             self.print_cost_estimates(total_words, task="atomic fact generation", model="davinci-003")
+            atomic_token = total_words * 4.0 / 3
 
             if verbose:
                 topics = tqdm(topics)
@@ -168,6 +172,8 @@ class FactScorer(object):
 
             self.print_cost_estimates(total_words, task="factscore evaluation", model="gpt-3.5-turbo")
 
+            fact_checking_token = total_words * 4.0 / 3
+
         if verbose:
             topics = tqdm(topics)
 
@@ -196,6 +202,8 @@ class FactScorer(object):
         out = {"score": np.mean(scores),
                "respond_ratio": respond_ratio,
                "decisions": decisions,
+               "atomictoken": round(atomic_token, 2),
+               "factcheckingtoken":round(fact_checking_token, 2),
                "num_facts_per_response": np.mean([len(d) for d in decisions if d is not None])}
 
         if gamma:
