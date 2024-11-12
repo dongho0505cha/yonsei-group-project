@@ -2,6 +2,7 @@ from langchain.chains.llm import LLMChain
 from langchain_pinecone import PineconeVectorStore
 from langchain_core.prompts import PromptTemplate
 from langchain.chains.retrieval import create_retrieval_chain
+from langchain.chains.retrieval import create_retrieval_multi_query_chain
 from langchain.chains.combine_documents import create_stuff_documents_chain
 from config import embeddings, llm, answer_prompt
 from database import get_dataset, init_pinecone_database
@@ -39,7 +40,10 @@ def question_and_answer(question_dataset_name, index_name, similarity_score_thre
     
     combine_docs_chain = create_stuff_documents_chain(llm, answer_prompt)
     qa_chain = create_retrieval_chain(retriever, combine_docs_chain)
-        
+    
+    multi_qa_chain = create_retrieval_multi_query_chain(retriever, combine_docs_chain)
+
+
     factcheck_dataset_length = 100
     dataset = get_dataset(question_dataset_name, factcheck_dataset_length)
 
@@ -54,6 +58,12 @@ def question_and_answer(question_dataset_name, index_name, similarity_score_thre
                 executor.submit(process_data, index, data, qa_chain, regenerate_question_max_attempts)
                 for index, data in enumerate(dataset)
             ]
+
+            # multi query request..
+            # futures = [
+            #     executor.submit(process_data, index, data, multi_qa_chain, regenerate_question_max_attempts)
+            #     for index, data in enumerate(dataset)
+            # ]
 
             # 완료된 작업에서 결과를 수집하여 CSV 파일에 기록
             for future in concurrent.futures.as_completed(futures):
