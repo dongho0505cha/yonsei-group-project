@@ -2,7 +2,6 @@ from langchain.chains.llm import LLMChain
 from langchain_pinecone import PineconeVectorStore
 from langchain_core.prompts import PromptTemplate
 from langchain.chains.retrieval import create_retrieval_chain
-from langchain.chains.retrieval import create_retrieval_multi_query_chain
 from langchain.chains.combine_documents import create_stuff_documents_chain
 from config import embeddings, llm, answer_prompt
 from database import get_dataset, init_pinecone_database
@@ -13,13 +12,13 @@ import concurrent.futures
 import os
 
 
-def process_data(index, data, qa_chain, regenerate_question_max_attempts):
+def process_data(index, data, qa_chain_list, regenerate_question_max_attempts):
     print("======================")
     print(f"Test case : {index + 1}")
     print("======================")
 
     # rag_with_fact_checking 함수 호출
-    result, documents, attempts = rag_with_fact_checking(data['question'], qa_chain, regenerate_question_max_attempts, index + 1)
+    result, documents, attempts = rag_with_fact_checking(data['question'], qa_chain_list, regenerate_question_max_attempts, index + 1)
 
     if result:
         print(f"Final answer: {result}")
@@ -40,30 +39,44 @@ def question_and_answer(question_dataset_name, index_name, similarity_score_thre
     
     combine_docs_chain = create_stuff_documents_chain(llm, answer_prompt)
     qa_chain = create_retrieval_chain(retriever, combine_docs_chain)
-    
-    multi_qa_chain = create_retrieval_multi_query_chain(retriever, combine_docs_chain)
+    qa_chain_list = [qa_chain]
+
+    if similarity_score_threshold:
+        if (similarity_score_threshold + 0.1) < 0.9:
+            score_threshold = similarity_score_threshold + 0.1
+        else:
+            score_threshold = 0.9
+        retriever2 = vector_store.as_retriever(search_type="similarity_score_threshold", search_kwargs={"score_threshold": score_threshold})
+    else:
+        retriever2 = vector_store.as_retriever(search_type="mmr", search_kwargs={'k': 6, 'lambda_mult': 0.25})
+    qa_chain_list.append(create_retrieval_chain(retriever2, combine_docs_chain))
+
+    if similarity_score_threshold:
+        if (similarity_score_threshold + 0.2) < 0.9:
+            score_threshold = similarity_score_threshold + 0.2
+        else:
+            score_threshold = 0.9
+        retriever3 = vector_store.as_retriever(search_type="similarity_score_threshold", search_kwargs={"score_threshold": score_threshold})
+    else:
+        retriever3 = vector_store.as_retriever(search_type="mmr", search_kwargs={'k': 5, 'fetch_k': 50})
+    qa_chain_list.append(create_retrieval_chain(retriever3, combine_docs_chain))
 
 
-    factcheck_dataset_length = 100
+
+    factcheck_dataset_length = 100 #  for test
     dataset = get_dataset(question_dataset_name, factcheck_dataset_length)
 
     outputFileName = f"output{round(time.time(), 1)}.csv"
-    with open(outputFileName, mode="w", newline="") as file:
+    with open(outputFileName, mode="w", newline="", encoding='utf-8') as file:
         writer = csv.writer(file)
         writer.writerow(["question_id", "question", "attempt", "answer", "fact_score", "retrieval_time", "factchecking_time", "atomic_token", "checking_token"])
         
         with concurrent.futures.ThreadPoolExecutor(max_workers= (os.cpu_count() * 5)/2) as executor:
             # process_data 함수를 병렬로 호출
             futures = [
-                executor.submit(process_data, index, data, qa_chain, regenerate_question_max_attempts)
+                executor.submit(process_data, index, data, qa_chain_list, regenerate_question_max_attempts)
                 for index, data in enumerate(dataset)
             ]
-
-            # multi query request..
-            # futures = [
-            #     executor.submit(process_data, index, data, multi_qa_chain, regenerate_question_max_attempts)
-            #     for index, data in enumerate(dataset)
-            # ]
 
             # 완료된 작업에서 결과를 수집하여 CSV 파일에 기록
             for future in concurrent.futures.as_completed(futures):
@@ -117,12 +130,14 @@ def generate_new_question(original_question):
 
     return new_question.strip()
 
-def rag_with_fact_checking(initial_question, qa_chain, max_attempts, index):
+def rag_with_fact_checking(initial_question, qa_chain_list, max_attempts, index):
     current_question = initial_question
     attempt_data = []
+    qa_index = 0
     for attempt in range(max_attempts):
         retrieval_start_time = time.time()
-        result = qa_chain.invoke({"input": current_question})
+        result = qa_chain_list[qa_index].invoke({"input": current_question})
+
         answer = result['answer']
         retrieval_end_time = time.time()
         documents = result['context']
@@ -155,7 +170,10 @@ def rag_with_fact_checking(initial_question, qa_chain, max_attempts, index):
             print("Fact check passed. Returning answer.")            
             return {"question" : current_question, "answer" : answer}, documents, attempt_data
         else:
-            print("Fact check failed. Generating new question.")
+            print("Fact check failed. get retrival.")
+            if (qa_index + 1) < len(qa_chain_list):
+               qa_index = qa_index + 1
+            #print("Fact check failed. Generating new question.")
             current_question = generate_new_question(current_question)
 
     print(f"Max attempts ({max_attempts}) reached. No factual answer found.")

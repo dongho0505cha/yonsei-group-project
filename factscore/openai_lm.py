@@ -6,6 +6,7 @@ import os
 import numpy as np
 import logging
 from config import llm
+from openai import OpenAIError # import error from openai
 
 class OpenAIModel(LM):
 
@@ -63,16 +64,10 @@ def call_ChatGPT(message, model_name="gpt-3.5-turbo", max_len=1024, temp=0.7, ve
             #                                         max_tokens=max_len,
             #                                         temperature=temp)
             received = True
-        except:
+        except OpenAIError as e:
             # print(message)
             num_rate_errors += 1
-            error = sys.exc_info()[0]
-            if error == openai.error.InvalidRequestError:
-                # something is wrong: e.g. prompt too long
-                logging.critical(f"InvalidRequestError\nPrompt passed in:\n\n{message}\n\n")
-                assert False
-            
-            logging.error("API error: %s (%d). Waiting %dsec" % (error, num_rate_errors, np.power(2, num_rate_errors)))
+            logging.error("API error: %s (%d). Waiting %dsec" % (str(e), num_rate_errors, np.power(2, num_rate_errors)))
             time.sleep(np.power(2, num_rate_errors))
     return response
 
